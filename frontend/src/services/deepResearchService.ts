@@ -46,7 +46,7 @@ export interface DeepResearchResponse {
   totalProcessingTime: number;
 }
 
-// SerpAPI Types
+// SerpAPI Types - Updated for Walmart engine
 interface SerpSearchResult {
   title: string;
   link: string;
@@ -67,12 +67,48 @@ interface SerpShoppingResult {
   thumbnail?: string;
 }
 
+// Walmart-specific product structure
+interface WalmartProduct {
+  us_item_id: string;
+  product_id: string;
+  title: string;
+  thumbnail: string;
+  rating: number;
+  reviews: number;
+  seller_name: string;
+  primary_offer: {
+    offer_price: number;
+    min_price: number;
+  };
+  price_per_unit?: {
+    unit: string;
+    amount: string;
+  };
+  product_page_url: string;
+  description?: string;
+  free_shipping_with_walmart_plus?: boolean;
+  out_of_stock?: boolean;
+}
+
 interface SerpApiResponse {
   organic_results: SerpSearchResult[];
   shopping_results?: SerpShoppingResult[];
   search_metadata?: {
     status: string;
     total_time_taken: number;
+  };
+}
+
+// Walmart API Response
+interface WalmartApiResponse {
+  organic_results: WalmartProduct[];
+  search_metadata?: {
+    status: string;
+    total_time_taken: number;
+  };
+  search_information?: {
+    total_results: number;
+    query_displayed: string;
   };
 }
 
@@ -131,95 +167,80 @@ Examples:
     const category = intent.category;
     const constraints = intent.constraints;
     
-    // Create targeted search queries
+    // Create targeted search queries for Walmart engine
     const queries = [
-      `best ${category} ${constraints.price ? `under ${constraints.price}` : ''} ${constraints.brand || ''} buy online`,
-      `${category} reviews ${constraints.rating ? 'high rated' : ''} ${constraints.brand || ''} 2024`,
-      `${category} price comparison ${constraints.brand || ''} shopping`,
-      `top ${category} ${constraints.features?.join(' ') || ''} recommendations`
-    ].filter(q => q.trim().length > 0);
+      `${category} ${constraints.brand || ''}`.trim(),
+      `${category} ${constraints.features?.join(' ') || ''}`.trim(),
+      `${category} best rated ${constraints.price ? `under ${constraints.price}` : ''}`.trim()
+    ].filter(q => q.length > 0);
 
     return {
-      searchQueries: queries.slice(0, 3), // Limit to 3 queries to manage API usage
-      extractionTargets: ['product name', 'price', 'rating', 'reviews', 'specifications'],
-      rankingCriteria: ['rating', 'price', 'reviews sentiment', 'source credibility'],
-      expectedResults: 8
+      searchQueries: queries.slice(0, 2), // Limit to 2 queries for Walmart engine
+      extractionTargets: ['product name', 'price', 'rating', 'reviews', 'walmart availability'],
+      rankingCriteria: ['rating', 'price', 'reviews sentiment', 'walmart availability'],
+      expectedResults: 20
     };
   }
 
-  // Step 3: Execute SERP Search
-  async executeSearch(plan: ResearchPlan): Promise<(SerpSearchResult | SerpShoppingResult)[]> {
-    const allResults: (SerpSearchResult | SerpShoppingResult)[] = [];
+  // Step 3: Execute Walmart Search
+  async executeSearch(plan: ResearchPlan): Promise<WalmartProduct[]> {
+    const allResults: WalmartProduct[] = [];
 
     for (const query of plan.searchQueries) {
       try {
-        console.log(`🔍 Searching for: ${query}`);
+        console.log(`🔍 Searching Walmart for: ${query}`);
         
         const params = new URLSearchParams({
           q: query,
-          engine: 'google',
-          num: '8',
-          gl: 'us',
-          hl: 'en'
+          engine: 'walmart',
+          ps: '20' // Get 20 results per query
         });
 
-        // Use the Next.js API route instead of calling SerpAPI directly
+        // Use the Next.js API route with Walmart engine
         const response = await fetch(`/api/search?${params}`);
         
         if (!response.ok) {
-          throw new Error(`Search API request failed: ${response.status} ${response.statusText}`);
+          throw new Error(`Walmart search API request failed: ${response.status} ${response.statusText}`);
         }
 
-        const data: SerpApiResponse = await response.json();
+        const data: WalmartApiResponse = await response.json();
         
-        // Combine organic and shopping results
-        const organicResults = data.organic_results || [];
-        const shoppingResults = data.shopping_results || [];
+        // Get Walmart products
+        const walmartProducts = data.organic_results || [];
         
-        // Convert shopping results to match our interface
-        const convertedShoppingResults = shoppingResults.map(result => ({
-          title: result.title,
-          link: result.link,
-          snippet: `${result.source} - ${result.price}${result.rating ? ` - ${result.rating}/5 stars` : ''}${result.reviews ? ` - ${result.reviews} reviews` : ''}`,
-          price: result.price,
-          rating: result.rating?.toString(),
-          source: result.source,
-          position: 0
-        }));
-
-        allResults.push(...organicResults, ...convertedShoppingResults);
+        allResults.push(...walmartProducts);
         
-        console.log(`✅ Found ${organicResults.length} organic + ${shoppingResults.length} shopping results`);
+        console.log(`✅ Found ${walmartProducts.length} Walmart products`);
         
         // Small delay to be respectful to the API
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 300));
         
       } catch (error) {
-        console.error(`Search failed for query: ${query}`, error);
+        console.error(`Walmart search failed for query: ${query}`, error);
         // Continue with other queries even if one fails
       }
     }
 
-    console.log(`📊 Total search results: ${allResults.length}`);
+    console.log(`📊 Total Walmart products found: ${allResults.length}`);
     return allResults;
   }
 
-  // Step 4: Extract Product Information
-  async extractProductInfo(searchResults: (SerpSearchResult | SerpShoppingResult)[]): Promise<ProductResearchResult[]> {
+  // Step 4: Extract Product Information from Walmart Results
+  async extractProductInfo(walmartProducts: WalmartProduct[]): Promise<ProductResearchResult[]> {
     const products: ProductResearchResult[] = [];
 
-    for (const result of searchResults.slice(0, 12)) { // Limit to top 12 results
+    for (const product of walmartProducts.slice(0, 20)) { // Process up to 20 Walmart products
       try {
-        const productInfo = await this.parseProductFromResult(result);
+        const productInfo = await this.parseWalmartProduct(product);
         if (productInfo) {
           products.push(productInfo);
         }
       } catch (error) {
-        console.error('Product extraction failed:', error);
+        console.error('Walmart product extraction failed:', error);
       }
     }
 
-    console.log(`📦 Extracted ${products.length} products`);
+    console.log(`📦 Extracted ${products.length} Walmart products`);
     return products;
   }
 
@@ -523,6 +544,47 @@ Just return the number, no explanation.
     report += `The ranking is based on a combination of user ratings, price competitiveness, and review sentiment.\n\n`;
     
     return report;
+  }
+
+  private async parseWalmartProduct(product: WalmartProduct): Promise<ProductResearchResult | null> {
+    // Extract price from Walmart product
+    const price = product.primary_offer?.offer_price || 0;
+    
+    // Extract rating and reviews
+    const rating = product.rating || 4.0;
+    const reviewCount = product.reviews || 0;
+    
+    // Skip if no meaningful product data
+    if (price === 0) {
+      return null;
+    }
+
+    // Create reviews based on rating and review count
+    const reviews: ReviewData[] = [];
+    if (rating > 0 && reviewCount > 0) {
+      reviews.push({
+        text: rating >= 4.5 ? `Excellent product! Highly recommended. ${reviewCount} customers agree.` :
+              rating >= 4.0 ? `Great product with good value. ${reviewCount} reviews.` :
+              rating >= 3.5 ? `Good product overall. ${reviewCount} customer reviews.` :
+              `Average product. Based on ${reviewCount} reviews.`,
+        rating: rating,
+        sentiment: rating >= 4.0 ? 'positive' : rating >= 3.0 ? 'neutral' : 'negative',
+        confidence: 0.8
+      });
+    }
+
+    return {
+      name: product.title,
+      price: price,
+      rating: rating,
+      description: product.description || product.title,
+      imageUrl: product.thumbnail,
+      source: 'Walmart',
+      sourceUrl: product.product_page_url,
+      reviews: reviews,
+      sentimentScore: 0, // Will be calculated later
+      overallScore: 0 // Will be calculated later
+    };
   }
 
   // Configuration methods

@@ -3,10 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
-  const engine = searchParams.get('engine') || 'google';
-  const num = searchParams.get('num') || '8';
-  const gl = searchParams.get('gl') || 'us';
-  const hl = searchParams.get('hl') || 'en';
+  const engine = searchParams.get('engine') || 'walmart';
+  const num = searchParams.get('num') || '40';
+  const page = searchParams.get('page') || '1';
 
   if (!query) {
     return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
@@ -18,12 +17,11 @@ export async function GET(request: NextRequest) {
     const params = new URLSearchParams({
       api_key: serpApiKey,
       engine: engine,
-      q: query,
-      num: num,
-      gl: gl,
-      hl: hl,
-      location: 'United States',
-      google_domain: 'google.com'
+      query: query,
+      ps: num,
+      page: page,
+      sort: 'best_match',
+      device: 'desktop'
     });
 
     const response = await fetch(`https://serpapi.com/search.json?${params}`);

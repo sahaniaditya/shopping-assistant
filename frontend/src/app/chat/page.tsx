@@ -64,6 +64,25 @@ export default function ChatPage() {
     }
   }, [chat]);
 
+  // Initialize sidebar state based on screen size
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) { // lg breakpoint
+        setSidebarOpen(true);
+      } else {
+        setSidebarOpen(false);
+      }
+    };
+
+    // Set initial state
+    handleResize();
+    
+    // Listen for window resize
+    window.addEventListener('resize', handleResize);
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const handleSendMessage = async () => {
     if (!inputText.trim() || chat.isLoading) return;
 
@@ -149,7 +168,7 @@ export default function ChatPage() {
       
       <div className="flex h-screen pt-16">
         {/* Sidebar */}
-        <div className={`${sidebarOpen ? 'block' : 'hidden'} lg:block w-80 flex-shrink-0`}>
+        <div className={`${sidebarOpen ? 'block' : 'hidden'} w-80 flex-shrink-0`}>
           <ConversationSidebar
             conversations={chat.conversations}
             activeConversationId={chat.activeConversationId}
@@ -162,11 +181,12 @@ export default function ChatPage() {
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Mobile Sidebar Toggle */}
-          <div className="lg:hidden bg-white border-b px-4 py-3 flex items-center justify-between">
+          {/* Sidebar Toggle */}
+          <div className="bg-white border-b px-4 py-3 flex items-center justify-between">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
             >
               {sidebarOpen ? (
                 <XMarkIcon className="h-5 w-5 text-gray-600" />
@@ -296,7 +316,7 @@ export default function ChatPage() {
                         ? "Processing..." 
                         : "Type your message or use voice input..."
                     }
-                    className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-base bg-gray-50 focus:bg-white transition-colors"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-base bg-gray-50 focus:bg-white transition-colors text-black"
                     rows={1}
                     disabled={isListening || isProcessing}
                   />

@@ -147,49 +147,56 @@ const DeepResearchResults: React.FC<DeepResearchResultsProps> = ({
         )}
       </div>
 
-      {/* Research Summary */}
-      <div className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-        <div className="prose max-w-none">
-          <div 
-            className="text-gray-700 leading-relaxed"
-            dangerouslySetInnerHTML={{ 
-              __html: results.researchSummary
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                .replace(/\n/g, '<br />')
-                .replace(/^# (.*$)/gm, '<h2 class="text-xl font-bold text-gray-900 mt-4 mb-2">$1</h2>')
-                .replace(/^## (.*$)/gm, '<h3 class="text-lg font-semibold text-gray-800 mt-3 mb-2">$1</h3>')
-                .replace(/^- (.*$)/gm, '<li class="ml-4">$1</li>')
-            }}
-          />
-        </div>
-      </div>
-
       {/* Product Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {displayedProducts.map((product, index) => (
           <div key={`${product.name}-${index}`} className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
-            {/* Product Header */}
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex-1">
-                <h4 className="font-medium text-gray-900 text-sm leading-tight mb-1">
-                  {product.name}
-                </h4>
-                <div className="flex items-center space-x-2 text-xs text-gray-500">
-                  <span className="flex items-center">
-                    <span className="w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
-                    #{index + 1}
-                  </span>
-                  <span>•</span>
-                  <span>{product.source}</span>
+            {/* Product Header with Image */}
+            <div className="flex items-start space-x-3 mb-3">
+              {/* Product Image */}
+              <div className="w-16 h-16 flex-shrink-0">
+                <div className="w-full h-full bg-gray-100 rounded-lg overflow-hidden">
+                  {product.imageUrl ? (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                      }}
+                    />
+                  ) : null}
+                  <div className={`w-full h-full bg-gray-200 flex items-center justify-center text-xs text-gray-400 ${product.imageUrl ? 'hidden' : ''}`}>
+                    No Image
+                  </div>
                 </div>
               </div>
-              <input
-                type="checkbox"
-                checked={selectedProducts.has(product.name)}
-                onChange={() => toggleProductSelection(product.name)}
-                className="ml-2 w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-              />
+              
+              {/* Product Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h4 className="font-medium text-gray-900 text-sm leading-tight mb-1">
+                      {product.name}
+                    </h4>
+                    <div className="flex items-center space-x-2 text-xs text-gray-500">
+                      <span className="flex items-center">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full mr-1"></span>
+                        #{index + 1}
+                      </span>
+                      <span>•</span>
+                      <span>{product.source}</span>
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={selectedProducts.has(product.name)}
+                    onChange={() => toggleProductSelection(product.name)}
+                    className="ml-2 w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Price and Rating */}
