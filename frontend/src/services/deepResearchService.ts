@@ -29,6 +29,13 @@ export interface ProductResearchResult {
   reviews: ReviewData[];
   sentimentScore: number;
   overallScore: number;
+  // Enhanced with detailed product data
+  productId?: string;
+  reviewCount?: number;
+  specifications?: ProductSpecification[];
+  seller?: string;
+  availability?: string;
+  shipping?: string;
 }
 
 export interface ReviewData {
@@ -36,6 +43,82 @@ export interface ReviewData {
   rating: number;
   sentiment: 'positive' | 'negative' | 'neutral';
   confidence: number;
+  // Enhanced with real review data
+  reviewTitle?: string;
+  reviewDate?: string;
+  reviewerName?: string;
+  helpfulVotes?: number;
+  verified?: boolean;
+}
+
+export interface ProductSpecification {
+  name: string;
+  value: string;
+}
+
+// New interface for detailed product data from Walmart product endpoint
+export interface WalmartProductDetail {
+  product: {
+    id: string;
+    title: string;
+    description?: string;
+    images?: string[];
+    brand?: string;
+    model?: string;
+    price: {
+      current: number;
+      original?: number;
+      currency: string;
+    };
+    rating: {
+      average: number;
+      count: number;
+      breakdown?: {
+        five_star: number;
+        four_star: number;
+        three_star: number;
+        two_star: number;
+        one_star: number;
+      };
+    };
+    availability: {
+      in_stock: boolean;
+      stock_level?: string;
+      shipping_info?: string;
+    };
+    seller?: {
+      name: string;
+      rating?: number;
+    };
+    specifications?: ProductSpecification[];
+  };
+  reviews: {
+    reviews: DetailedReview[];
+    summary: {
+      total_reviews: number;
+      average_rating: number;
+      sentiment_distribution: {
+        positive: number;
+        neutral: number;
+        negative: number;
+      };
+    };
+  };
+}
+
+export interface DetailedReview {
+  id: string;
+  title: string;
+  text: string;
+  rating: number;
+  date: string;
+  reviewer: {
+    name: string;
+    verified_purchase: boolean;
+  };
+  helpful_votes: number;
+  sentiment?: 'positive' | 'negative' | 'neutral';
+  sentiment_confidence?: number;
 }
 
 export interface DeepResearchResponse {
@@ -115,13 +198,14 @@ interface WalmartApiResponse {
 class DeepResearchService {
   private serpApiKey: string;
   private geminiApiKey: string;
+  private productUrl = 'https://serpapi.com/search.json?device=desktop&engine=walmart_product&product_id=190340117&api_key=6bcbe76b8b514518985e3007d17211f273c1691b24ad3ea72596b847e258b230'
   private baseUrl = 'https://serpapi.com/search.json';
-  private geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+  private geminiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
   constructor() {
     // Use the provided API key
     this.serpApiKey = process.env.NEXT_PUBLIC_SERP_API_KEY || '6bcbe76b8b514518985e3007d17211f273c1691b24ad3ea72596b847e258b230';
-    this.geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
+    this.geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || 'AIzaSyB-iE3cUXJw2h-tcQrJnEkmPes7-URe3qI';
   }
 
   // Step 1: Extract Intent & Category from User Query
@@ -190,16 +274,16 @@ Examples:
       try {
         console.log(`🔍 Searching Walmart for: ${query}`);
         
-        const params = new URLSearchParams({
-          q: query,
-          engine: 'walmart',
-          ps: '20' // Get 20 results per query
-        });
+        // Use Next.js API route instead of direct SerpAPI call
+        const apiUrl = `/api/search?q=${encodeURIComponent(query)}&engine=walmart&ps=20`;
+        
+        console.log(`📡 Calling local API route: ${apiUrl}`);
 
-        // Use the Next.js API route with Walmart engine
-        const response = await fetch(`/api/search?${params}`);
+        const response = await fetch(apiUrl);
         
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`❌ API Error: ${response.status} ${response.statusText}`, errorText);
           throw new Error(`Walmart search API request failed: ${response.status} ${response.statusText}`);
         }
 
@@ -210,7 +294,7 @@ Examples:
         
         allResults.push(...walmartProducts);
         
-        console.log(`✅ Found ${walmartProducts.length} Walmart products`);
+        console.log(`✅ Found ${walmartProducts.length} Walmart products for query: ${query}`);
         
         // Small delay to be respectful to the API
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -225,23 +309,151 @@ Examples:
     return allResults;
   }
 
-  // Step 4: Extract Product Information from Walmart Results
-  async extractProductInfo(walmartProducts: WalmartProduct[]): Promise<ProductResearchResult[]> {
-    const products: ProductResearchResult[] = [];
+  // Enhanced method to get detailed product information
+  async getDetailedProductInfo(productId: string): Promise<WalmartProductDetail | null> {
+    try {
+      console.log(`🔍 Fetching detailed product info for ID: ${productId}`);
+      
+      // Use Next.js API route instead of direct SerpAPI call
+      const apiUrl = `/api/product-details?product_id=${productId}`;
 
-    for (const product of walmartProducts.slice(0, 20)) { // Process up to 20 Walmart products
-      try {
-        const productInfo = await this.parseWalmartProduct(product);
-        if (productInfo) {
-          products.push(productInfo);
-        }
-      } catch (error) {
-        console.error('Walmart product extraction failed:', error);
+      console.log(`📡 Calling local API route: ${apiUrl}`);
+      
+      const response = await fetch(apiUrl);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ API Error: ${response.status} ${response.statusText}`, errorText);
+        throw new Error(`Failed to fetch product details: ${response.status} ${response.statusText}`);
       }
+
+      const data = await response.json();
+      console.log(`✅ Received detailed product data for ${productId}`);
+      
+      // Transform the response to our detailed product interface
+      return this.transformToDetailedProduct(data);
+      
+    } catch (error) {
+      console.error('Failed to fetch detailed product info:', error);
+      return null;
+    }
+  }
+
+  // Transform SerpAPI response to our detailed product format
+  private transformToDetailedProduct(data: any): WalmartProductDetail | null {
+    if (!data.product || !data.product.title) {
+      return null;
     }
 
-    console.log(`📦 Extracted ${products.length} Walmart products`);
-    return products;
+    // Extract product information
+    const product = {
+      id: data.product.us_item_id || data.product.product_id || '',
+      title: data.product.title,
+      description: data.product.description || data.product.about_this_item?.join(' ') || '',
+      images: data.product.images || [data.product.thumbnail],
+      brand: data.product.brand || '',
+      model: data.product.model || '',
+      price: {
+        current: data.product.price || data.product.primary_offer?.offer_price || 0,
+        original: data.product.original_price || data.product.primary_offer?.min_price,
+        currency: 'USD'
+      },
+      rating: {
+        average: data.product.rating || 0,
+        count: data.product.reviews_count || data.product.reviews || 0,
+        breakdown: data.product.rating_breakdown || {}
+      },
+      availability: {
+        in_stock: !data.product.out_of_stock,
+        stock_level: data.product.stock_level || '',
+        shipping_info: data.product.shipping_info || ''
+      },
+      seller: {
+        name: data.product.seller_name || 'Walmart',
+        rating: data.product.seller_rating
+      },
+      specifications: this.extractSpecifications(data.product.specifications || data.product.features || [])
+    };
+
+    // Extract review information
+    const reviews = {
+      reviews: this.extractDetailedReviews(data.reviews || []),
+      summary: {
+        total_reviews: data.product.reviews_count || data.product.reviews || 0,
+        average_rating: data.product.rating || 0,
+        sentiment_distribution: {
+          positive: 0,
+          neutral: 0,
+          negative: 0
+        }
+      }
+    };
+
+    return { product, reviews };
+  }
+
+  // Extract specifications from product data
+  private extractSpecifications(specs: any[]): ProductSpecification[] {
+    if (!Array.isArray(specs)) return [];
+    
+    return specs.map(spec => ({
+      name: spec.name || spec.key || '',
+      value: spec.value || spec.description || ''
+    })).filter(spec => spec.name && spec.value);
+  }
+
+  // Extract detailed reviews
+  private extractDetailedReviews(reviewsData: any[]): DetailedReview[] {
+    if (!Array.isArray(reviewsData)) return [];
+    
+    return reviewsData.map(review => ({
+      id: review.id || Math.random().toString(36),
+      title: review.title || '',
+      text: review.text || review.review_text || '',
+      rating: review.rating || 0,
+      date: review.date || review.review_date || '',
+      reviewer: {
+        name: review.reviewer_name || 'Anonymous',
+        verified_purchase: review.verified_purchase || false
+      },
+      helpful_votes: review.helpful_votes || 0,
+      sentiment: undefined, // Will be analyzed by LLM
+      sentiment_confidence: undefined
+    }));
+  }
+
+  // Enhanced method to extract product info with detailed data
+  async extractProductInfo(walmartProducts: WalmartProduct[]): Promise<ProductResearchResult[]> {
+    console.log(`📊 Extracting detailed info for ${walmartProducts.length} products`);
+    
+    const results: ProductResearchResult[] = [];
+    
+    for (const product of walmartProducts) {
+      try {
+        // Get detailed product information
+        const productId = product.us_item_id || product.product_id;
+        const detailedInfo = productId ? await this.getDetailedProductInfo(productId) : null;
+        
+        if (detailedInfo) {
+          // Use real detailed data
+          const productResult = await this.parseDetailedProduct(detailedInfo);
+          if (productResult) {
+            results.push(productResult);
+          }
+        } else {
+          // Fallback to basic product parsing
+          const basicProduct = await this.parseWalmartProduct(product);
+          if (basicProduct) {
+            results.push(basicProduct);
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing product ${product.title}:`, error);
+        // Continue with next product
+      }
+    }
+    
+    return results;
   }
 
   // Step 5: Sentiment Analysis & Ranking
@@ -264,46 +476,61 @@ Examples:
     return rankedProducts;
   }
 
-  // Step 6: Generate Answer with Citations
+  // Step 5: Generate Final Research Report with Enhanced Data
   async generateResearchReport(
     products: ProductResearchResult[], 
     originalQuery: string
   ): Promise<string> {
+    if (!this.geminiApiKey) {
+      return this.generateEnhancedFallbackReport(products, originalQuery);
+    }
+
     const topProducts = products.slice(0, 5);
-    const context = topProducts.map((p, i) => 
-      `${i + 1}. **${p.name}** - $${p.price} - Rating: ${p.rating}/5
-         Source: ${p.source} (${p.sourceUrl})
-         Sentiment Score: ${p.sentimentScore.toFixed(2)}
-         Description: ${p.description.substring(0, 200)}...`
-    ).join('\n\n');
+    const totalReviews = products.reduce((sum, p) => sum + (p.reviewCount || 0), 0);
+    const averageRating = products.reduce((sum, p) => sum + p.rating, 0) / products.length;
+    const averageSentiment = products.reduce((sum, p) => sum + p.sentimentScore, 0) / products.length;
 
-    if (this.geminiApiKey) {
-      const prompt = `
-Based on the user query: "${originalQuery}"
+    const prompt = `
+As an expert product research analyst, create a comprehensive research report based on real customer data and reviews.
 
-Here are the top researched products:
-${context}
+Original Query: "${originalQuery}"
 
-Write a comprehensive markdown report that:
-1. Recommends the top 3 products with clear justification
-2. Includes pricing and rating information
-3. Explains why these products are recommended
-4. Provides a brief comparison
-5. Mentions key features and benefits
+Products Analyzed (with real customer reviews and ratings):
+${topProducts.map((p, i) => `
+${i + 1}. ${p.name}
+   - Price: $${p.price.toLocaleString()}
+   - Rating: ${p.rating}/5 (${p.reviewCount || 0} reviews)
+   - Sentiment Score: ${(p.sentimentScore * 100).toFixed(1)}%
+   - Availability: ${p.availability}
+   - Seller: ${p.seller}
+   - Overall Score: ${(p.overallScore * 100).toFixed(1)}%
+   - Key Specifications: ${p.specifications?.slice(0, 3).map(s => `${s.name}: ${s.value}`).join(', ') || 'N/A'}
+   - Sample Reviews: ${p.reviews.slice(0, 2).map(r => `"${r.text.substring(0, 100)}..." (${r.rating}/5, ${r.sentiment})`).join('; ')}
+`).join('')}
 
-Format as markdown with proper headers and bullet points.
-Make it conversational and helpful.
+Research Statistics:
+- Total products analyzed: ${products.length}
+- Total customer reviews analyzed: ${totalReviews}
+- Average rating: ${averageRating.toFixed(1)}/5
+- Average sentiment score: ${(averageSentiment * 100).toFixed(1)}%
+
+Create a detailed report with:
+1. **Executive Summary** - Key findings and top recommendation
+2. **Product Analysis** - Detailed breakdown of top 3 products with pros/cons
+3. **Customer Sentiment Insights** - What customers really think based on reviews
+4. **Value Analysis** - Best value propositions and price comparisons
+5. **Buying Recommendation** - Specific recommendation with reasoning
+
+Use real customer feedback and data. Be objective and thorough.
 `;
 
-      try {
-        const response = await this.callGemini(prompt);
-        return response;
-      } catch (error) {
-        console.error('Report generation failed:', error);
-      }
+    try {
+      const response = await this.callGemini(prompt);
+      return response;
+    } catch (error) {
+      console.error('Report generation failed:', error);
+      return this.generateEnhancedFallbackReport(products, originalQuery);
     }
-    
-    return this.generateFallbackReport(topProducts, originalQuery);
   }
 
   // Main Deep Research Method
@@ -476,13 +703,21 @@ Just return the number, no explanation.
   }
 
   private calculateOverallScore(product: ProductResearchResult): number {
-    // Weighted scoring formula
+    // Enhanced scoring formula using real data
     const normalizedRating = product.rating / 5.0;
     const normalizedPrice = product.price > 0 ? Math.max(0, 1 - (product.price / 1000)) : 0;
     const sentimentScore = product.sentimentScore;
     
-    // Weights: 40% rating, 30% sentiment, 30% price
-    return (normalizedRating * 0.4) + (sentimentScore * 0.3) + (normalizedPrice * 0.3);
+    // Additional factors for enhanced scoring
+    const reviewCountWeight = product.reviewCount ? Math.min(1, product.reviewCount / 100) : 0.3; // More reviews = higher confidence
+    const availabilityWeight = product.availability === 'In Stock' ? 1.0 : 0.5;
+    const verifiedReviewsWeight = product.reviews.filter(r => r.verified).length / Math.max(1, product.reviews.length);
+    
+    // Enhanced weights: 30% rating, 25% sentiment, 20% price, 15% review count, 10% availability/verified
+    const baseScore = (normalizedRating * 0.3) + (sentimentScore * 0.25) + (normalizedPrice * 0.2);
+    const enhancedScore = baseScore + (reviewCountWeight * 0.15) + (availabilityWeight * 0.05) + (verifiedReviewsWeight * 0.05);
+    
+    return Math.max(0, Math.min(1, enhancedScore));
   }
 
   private extractDomain(url: string): string {
@@ -585,6 +820,223 @@ Just return the number, no explanation.
       sentimentScore: 0, // Will be calculated later
       overallScore: 0 // Will be calculated later
     };
+  }
+
+  // Parse detailed product information
+  private async parseDetailedProduct(detailedInfo: WalmartProductDetail): Promise<ProductResearchResult | null> {
+    const { product, reviews } = detailedInfo;
+    
+    // Analyze sentiment of real reviews using LLM
+    const analyzedReviews = await this.analyzeRealReviews(reviews.reviews);
+    
+    // Calculate real sentiment score based on actual reviews
+    const sentimentScore = this.calculateRealSentimentScore(analyzedReviews);
+    
+    return {
+      name: product.title,
+      price: product.price.current,
+      rating: product.rating.average,
+      description: product.description || product.title,
+      imageUrl: product.images?.[0],
+      source: 'Walmart',
+      sourceUrl: `https://www.walmart.com/ip/${product.id}`,
+      reviews: analyzedReviews,
+      sentimentScore: sentimentScore,
+      overallScore: 0, // Will be calculated later
+      // Enhanced fields
+      productId: product.id,
+      reviewCount: reviews.summary.total_reviews,
+      specifications: product.specifications || [],
+      seller: product.seller?.name || 'Walmart',
+      availability: product.availability.in_stock ? 'In Stock' : 'Out of Stock',
+      shipping: product.availability.shipping_info || ''
+    };
+  }
+
+  // Analyze real reviews using LLM for sentiment
+  private async analyzeRealReviews(reviews: DetailedReview[]): Promise<ReviewData[]> {
+    const analyzedReviews: ReviewData[] = [];
+    
+    for (const review of reviews.slice(0, 10)) { // Limit to 10 reviews for API efficiency
+      try {
+        const sentiment = await this.analyzeSentimentWithLLM(review.text);
+        
+        analyzedReviews.push({
+          text: review.text,
+          rating: review.rating,
+          sentiment: sentiment.sentiment,
+          confidence: sentiment.confidence,
+          reviewTitle: review.title,
+          reviewDate: review.date,
+          reviewerName: review.reviewer.name,
+          helpfulVotes: review.helpful_votes,
+          verified: review.reviewer.verified_purchase
+        });
+      } catch (error) {
+        console.error('Error analyzing review sentiment:', error);
+        // Add review with basic sentiment analysis
+        analyzedReviews.push({
+          text: review.text,
+          rating: review.rating,
+          sentiment: review.rating >= 4 ? 'positive' : review.rating >= 3 ? 'neutral' : 'negative',
+          confidence: 0.7,
+          reviewTitle: review.title,
+          reviewDate: review.date,
+          reviewerName: review.reviewer.name,
+          helpfulVotes: review.helpful_votes,
+          verified: review.reviewer.verified_purchase
+        });
+      }
+    }
+    
+    return analyzedReviews;
+  }
+
+  // Enhanced sentiment analysis using LLM
+  private async analyzeSentimentWithLLM(reviewText: string): Promise<{sentiment: 'positive' | 'negative' | 'neutral', confidence: number}> {
+    if (!this.geminiApiKey || !reviewText.trim()) {
+      return { sentiment: 'neutral', confidence: 0.5 };
+    }
+
+    const prompt = `
+Analyze the sentiment of this product review and return a JSON response:
+
+Review: "${reviewText.substring(0, 500)}"
+
+Return JSON in this exact format:
+{
+  "sentiment": "positive|negative|neutral",
+  "confidence": 0.85,
+  "reasoning": "brief explanation"
+}
+
+Consider:
+- Overall tone and emotion
+- Specific complaints or praise
+- Recommendation likelihood
+- Product satisfaction
+
+Just return the JSON, no additional text.
+`;
+
+    try {
+      const response = await this.callGemini(prompt);
+      const cleanResponse = response.replace(/```json\s*|\s*```/g, '').trim();
+      const analysis = JSON.parse(cleanResponse);
+      
+      return {
+        sentiment: analysis.sentiment,
+        confidence: Math.max(0, Math.min(1, analysis.confidence))
+      };
+    } catch (error) {
+      console.error('LLM sentiment analysis failed:', error);
+      // Fallback to simple sentiment analysis
+      return this.simpleSentimentAnalysis(reviewText);
+    }
+  }
+
+  // Simple fallback sentiment analysis
+  private simpleSentimentAnalysis(text: string): {sentiment: 'positive' | 'negative' | 'neutral', confidence: number} {
+    const positiveWords = ['great', 'excellent', 'amazing', 'love', 'perfect', 'recommend', 'best', 'awesome'];
+    const negativeWords = ['terrible', 'awful', 'hate', 'worst', 'broken', 'disappointed', 'waste', 'bad'];
+    
+    const lowerText = text.toLowerCase();
+    const positiveCount = positiveWords.filter(word => lowerText.includes(word)).length;
+    const negativeCount = negativeWords.filter(word => lowerText.includes(word)).length;
+    
+    if (positiveCount > negativeCount) {
+      return { sentiment: 'positive', confidence: 0.7 };
+    } else if (negativeCount > positiveCount) {
+      return { sentiment: 'negative', confidence: 0.7 };
+    } else {
+      return { sentiment: 'neutral', confidence: 0.6 };
+    }
+  }
+
+  // Calculate sentiment score based on real reviews
+  private calculateRealSentimentScore(reviews: ReviewData[]): number {
+    if (reviews.length === 0) return 0.5;
+    
+    const sentimentValues: number[] = reviews.map(review => {
+      switch (review.sentiment) {
+        case 'positive': return 1.0;
+        case 'negative': return 0.0;
+        case 'neutral': return 0.5;
+        default: return 0.5;
+      }
+    });
+    
+    return sentimentValues.reduce((sum, val) => sum + val, 0) / sentimentValues.length;
+  }
+
+  // Enhanced fallback report with real data
+  private generateEnhancedFallbackReport(products: ProductResearchResult[], query: string): string {
+    const topProducts = products.slice(0, 3);
+    const totalReviews = products.reduce((sum, p) => sum + (p.reviewCount || 0), 0);
+    const averageRating = products.reduce((sum, p) => sum + p.rating, 0) / products.length;
+    const averageSentiment = products.reduce((sum, p) => sum + p.sentimentScore, 0) / products.length;
+    
+    let report = `# Deep Research Results for "${query}"\n\n`;
+    
+    report += `## Executive Summary\n`;
+    report += `Based on analysis of ${products.length} products and ${totalReviews} customer reviews, here are the top recommendations:\n\n`;
+    
+    report += `**Key Findings:**\n`;
+    report += `- Average rating: ${averageRating.toFixed(1)}/5 stars\n`;
+    report += `- Customer sentiment: ${(averageSentiment * 100).toFixed(1)}% positive\n`;
+    report += `- Price range: $${Math.min(...products.map(p => p.price)).toLocaleString()} - $${Math.max(...products.map(p => p.price)).toLocaleString()}\n\n`;
+    
+    report += `## Top Product Recommendations\n\n`;
+    
+    topProducts.forEach((product, index) => {
+      report += `### ${index + 1}. ${product.name}\n`;
+      report += `- **Price**: $${product.price.toLocaleString()}\n`;
+      report += `- **Rating**: ${product.rating}/5 stars (${product.reviewCount || 0} reviews)\n`;
+      report += `- **Availability**: ${product.availability}\n`;
+      report += `- **Seller**: ${product.seller}\n`;
+      report += `- **Customer Sentiment**: ${(product.sentimentScore * 100).toFixed(1)}% positive\n`;
+      report += `- **Overall Score**: ${(product.overallScore * 100).toFixed(0)}%\n`;
+      
+      if (product.specifications && product.specifications.length > 0) {
+        report += `- **Key Features**: ${product.specifications.slice(0, 3).map(s => `${s.name}: ${s.value}`).join(', ')}\n`;
+      }
+      
+      report += `- **Source**: [View on Walmart](${product.sourceUrl})\n`;
+      
+      if (product.reviews.length > 0) {
+        const positiveReviews = product.reviews.filter(r => r.sentiment === 'positive').length;
+        const negativeReviews = product.reviews.filter(r => r.sentiment === 'negative').length;
+        const verifiedReviews = product.reviews.filter(r => r.verified).length;
+        
+        report += `\n**Customer Feedback Analysis:**\n`;
+        report += `- ${positiveReviews} positive reviews, ${negativeReviews} negative reviews\n`;
+        report += `- ${verifiedReviews} verified purchase reviews\n`;
+        
+        // Add sample review
+        const sampleReview = product.reviews.find(r => r.sentiment === 'positive') || product.reviews[0];
+        if (sampleReview) {
+          report += `- Sample review: "${sampleReview.text.substring(0, 150)}..." (${sampleReview.rating}/5)\n`;
+        }
+      }
+      
+      report += `\n`;
+    });
+    
+    report += `## Research Methodology\n`;
+    report += `This analysis used real customer reviews and ratings from Walmart's product database. `;
+    report += `Sentiment analysis was performed using AI to understand customer satisfaction. `;
+    report += `Products were ranked based on rating (30%), customer sentiment (25%), price competitiveness (20%), `;
+    report += `review quantity (15%), and availability (10%).\n\n`;
+    
+    report += `## Buying Recommendation\n`;
+    if (topProducts.length > 0) {
+      const topProduct = topProducts[0];
+      report += `**Recommended**: ${topProduct.name} - This product offers the best combination of `;
+      report += `customer satisfaction (${topProduct.rating}/5 stars), positive sentiment `;
+      report += `(${(topProduct.sentimentScore * 100).toFixed(1)}%), and value at $${topProduct.price.toLocaleString()}.\n`;
+    }
+    
+    return report;
   }
 
   // Configuration methods

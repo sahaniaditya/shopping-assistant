@@ -11,12 +11,13 @@ import {
 } from '@/types/ai';
 import { deepResearchService, DeepResearchResponse } from '@/services/deepResearchService';
 
+const NEXT_PUBLIC_GEMINI_API_KEY="AIzaSyB-iE3cUXJw2h-tcQrJnEkmPes7-URe3qI"
 // Default configuration
 const DEFAULT_CONFIG: AIServiceConfig = {
   llm: {
-    provider: 'openai',
-    apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY || '',
-    model: 'gpt-4o-mini',
+    provider: 'gemini',
+    apiKey: NEXT_PUBLIC_GEMINI_API_KEY, // Hardcoded for testing - remove in production
+    model: 'gemini-1.5-flash', // Updated to correct model name
     temperature: 0.7,
     maxTokens: 1000,
     streaming: true
@@ -126,14 +127,19 @@ class AIService {
   constructor(config: Partial<AIServiceConfig> = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
     
-    // Override with environment variables
-    if (process.env.NEXT_PUBLIC_OPENAI_API_KEY) {
-      this.config.llm.apiKey = process.env.NEXT_PUBLIC_OPENAI_API_KEY;
+    // TEMPORARILY DISABLED: Override with environment variable
+    // TODO: Re-enable this and remove hardcoded key for production
+    /*
+    if (process.env.NEXT_PUBLIC_GEMINI_API_KEY) {
+      this.config.llm.apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
     }
-    if (process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY) {
-      this.config.llm.provider = 'anthropic';
-      this.config.llm.apiKey = process.env.NEXT_PUBLIC_ANTHROPIC_API_KEY;
-    }
+    */
+    
+    console.log('🔑 Using hardcoded API key for testing:', {
+      hasApiKey: !!this.config.llm.apiKey,
+      keyLength: this.config.llm.apiKey?.length || 0,
+      keyPrefix: this.config.llm.apiKey?.substring(0, 10) + '...'
+    });
   }
 
   // Main method to process user messages with Deep Research integration
@@ -272,8 +278,9 @@ class AIService {
       const promptData = this.buildIntentPrompt(userMessage, context);
       const response = await this.callLLM(promptData);
       
-      // Parse JSON response
-      const intentData = JSON.parse(response.content);
+      // Clean and parse JSON response (remove markdown code blocks)
+      const cleanResponse = response.content.replace(/```json\s*|\s*```/g, '').trim();
+      const intentData = JSON.parse(cleanResponse);
       
       return {
         intent: intentData.intent,
@@ -739,15 +746,88 @@ class AIService {
     };
   }
 
-  // Call LLM API (mock implementation)
-  private async callLLM(_promptData: AIPrompt): Promise<{ content: string }> {
-    // This would make actual API calls to OpenAI, Anthropic, etc.
-    // For now, return a mock response
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API delay
+  // Call LLM API (Real Gemini implementation)
+  private async callLLM(promptData: AIPrompt): Promise<{ content: string }> {
+    console.log('🚀 Making real Gemini API call...');
     
-    return {
-      content: "This is a mock LLM response. In production, this would call the actual LLM API."
-    };
+    if (!this.config.llm.apiKey) {
+      throw new Error('No API key configured for Gemini');
+    }
+
+    try {
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${this.config.llm.model}:generateContent?key=${this.config.llm.apiKey}`;
+      
+      // Build the prompt for Gemini
+      const fullPrompt = [
+        promptData.system,
+        promptData.context,
+        `User: ${promptData.userMessage}`,
+        'Assistant:'
+      ].filter(Boolean).join('\n\n');
+
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: fullPrompt
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: this.config.llm.temperature,
+          maxOutputTokens: this.config.llm.maxTokens,
+          topK: 40,
+          topP: 0.95,
+        }
+      };
+
+      console.log('📝 Sending request to Gemini API...');
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Gemini API Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error(`Gemini API Error: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        console.error('❌ Invalid Gemini response structure:', data);
+        throw new Error('Invalid response from Gemini API');
+      }
+
+      const content = data.candidates[0].content.parts[0].text;
+      
+      console.log('✅ Gemini API response received:', {
+        responseLength: content.length,
+        model: this.config.llm.model
+      });
+      
+      return { content };
+      
+    } catch (error) {
+      console.error('❌ Gemini API call failed:', error);
+      
+      // Fallback to mock response if API fails
+      console.log('🔄 Falling back to mock response...');
+      return {
+        content: `I apologize, but I'm having trouble connecting to the AI service right now. However, I can still help you with your shopping needs! What are you looking for today?`
+      };
+    }
   }
 
   // Fallback response when AI services fail

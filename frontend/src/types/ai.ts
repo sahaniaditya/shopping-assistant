@@ -1,7 +1,7 @@
 // AI and LLM type definitions
 
 export interface LLMConfig {
-  provider: 'openai' | 'anthropic' | 'local';
+  provider: 'openai' | 'anthropic' | 'local' | 'gemini';
   apiKey: string;
   model: string;
   temperature: number;
