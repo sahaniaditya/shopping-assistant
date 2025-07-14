@@ -1,6 +1,6 @@
 'use client';
 
-import { useReducer, useEffect, useCallback } from 'react';
+import { useReducer, useEffect, useCallback, useState } from 'react';
 import { ChatState, ChatAction, Conversation, Message, MessageType, MessageStatus, MessageMetadata, ProductSearchIntent } from '@/types/chat';
 import { Product, ProductSearchQuery } from '@/types/product';
 import { productService } from '@/services/productService';
@@ -239,6 +239,7 @@ function detectProductSearchIntent(text: string): ProductSearchIntent | null {
 // Main hook
 export function useChat() {
   const [state, dispatch] = useReducer(chatReducer, initialChatState);
+  const [researchStatus, setResearchStatus] = useState<string>('');
   const userId = getUserId();
   const sessionId = getSessionId();
 
@@ -330,9 +331,14 @@ export function useChat() {
     dispatch({ type: 'CLEAR_ERROR' });
   }, []);
 
+  const clearResearchStatus = useCallback(() => {
+    setResearchStatus('');
+  }, []);
+
   // Handle product search from AI response
   const handleProductSearch = useCallback(async (aiResponse: LLMResponse, originalQuery: string, _context: ConversationContext) => {
     setSearchingProducts(true);
+    setTyping(true);
     
     try {
       // Check if this is a Deep Research response
@@ -341,7 +347,37 @@ export function useChat() {
         // For now, we'll conduct the actual Deep Research here
         try {
           const { deepResearchService } = await import('@/services/deepResearchService');
+          
+          // Show progressive status messages
+          setResearchStatus('🔍 Starting Deep Research...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          setResearchStatus('📊 Understanding your request...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          setResearchStatus('🛒 Searching Walmart products...');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          setResearchStatus('📦 Analyzing product details...');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          setResearchStatus('⭐ Reading customer reviews...');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          setResearchStatus('🧠 Analyzing sentiment & ranking...');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          
+          setResearchStatus('📝 Generating research report...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Actually conduct the research
           const deepResearchResult = await deepResearchService.conductDeepResearch(originalQuery);
+          
+          setResearchStatus('✅ Deep Research completed!');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Clear status
+          setResearchStatus('');
           
           // Create message with Deep Research results
           const assistantMessage: Message = {
@@ -369,17 +405,27 @@ export function useChat() {
           return;
         } catch (deepResearchError) {
           console.error('Deep Research failed:', deepResearchError);
+          setResearchStatus('❌ Deep Research failed, trying basic search...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          setResearchStatus('');
           // Fall through to regular product search
         }
       }
 
       // Fallback to regular product search
+      setResearchStatus('🔍 Searching products...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       const searchQuery: ProductSearchQuery = {
         query: originalQuery,
         ...aiResponse.intent.parameters
       };
 
       const searchResult = await productService.searchProducts(searchQuery);
+      
+      setResearchStatus('✅ Search completed!');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setResearchStatus('');
       
       // Add AI response message first
       const assistantMessage: Message = {
@@ -406,11 +452,13 @@ export function useChat() {
 
     } catch (error) {
       console.error('Product search failed:', error);
+      setResearchStatus('');
       setError('Failed to search for products. Please try again.');
     } finally {
       setSearchingProducts(false);
+      setTyping(false);
     }
-  }, [userId, sessionId, setSearchingProducts, setError]);
+  }, [userId, sessionId, setSearchingProducts, setTyping, setError]);
 
   // Legacy product search functionality (kept for backward compatibility)
   const searchProducts = useCallback(async (intent: ProductSearchIntent) => {
@@ -418,6 +466,9 @@ export function useChat() {
     setTyping(true);
     
     try {
+      setResearchStatus('🔍 Searching for products...');
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       const searchQuery: ProductSearchQuery = {
         query: intent.query,
         category: intent.category,
@@ -429,6 +480,13 @@ export function useChat() {
       };
 
       const searchResult = await productService.searchProducts(searchQuery);
+      
+      setResearchStatus('📊 Analyzing search results...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setResearchStatus('✅ Search completed!');
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setResearchStatus('');
       
       const resultText = searchResult.products.length > 0
         ? `I found ${searchResult.total} products for "${intent.query}". Here are the best matches:`
@@ -457,6 +515,7 @@ export function useChat() {
 
     } catch (error) {
       console.error('Product search failed:', error);
+      setResearchStatus('');
       setError('Failed to search for products. Please try again.');
     } finally {
       setSearchingProducts(false);
@@ -499,11 +558,17 @@ export function useChat() {
 
       setTyping(true);
       setLoading(true);
+      setResearchStatus('🤖 Processing your message...');
+      await new Promise(resolve => setTimeout(resolve, 800));
 
       try {
+        setResearchStatus('🧠 Understanding your request...');
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         // Process message with AI service (now includes Deep Research)
         const aiResponse: LLMResponse = await aiService.processMessage(text, context);
         
+        setResearchStatus('');
         setTyping(false);
 
         // Handle different intent types
@@ -534,6 +599,7 @@ export function useChat() {
 
       } catch (aiError) {
         console.warn('AI processing failed, falling back to legacy logic:', aiError);
+        setResearchStatus('');
         
         // Fallback to legacy product search logic
         const legacyIntent = detectProductSearchIntent(text);
@@ -567,6 +633,7 @@ export function useChat() {
 
     } catch (error) {
       console.error('Failed to process message:', error);
+      setResearchStatus('');
       setError('Failed to process your message. Please try again.');
     } finally {
       setLoading(false);
@@ -581,127 +648,51 @@ export function useChat() {
   const addToCart = useCallback((product: Product) => {
     console.log('Adding to cart:', product);
     
+    // Store product data in localStorage for the product details page
+    localStorage.setItem('selectedProduct', JSON.stringify(product));
+    
     // Mark product as selected in search history
     contextManager.markProductSelected(userId, sessionId, product.id);
     
-    // For now, just show a message (Phase 5 will implement actual cart)
-    const assistantMessage: Message = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      text: `Great choice! I've added "${product.title}" to your cart for ${product.price.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}. Would you like to continue shopping or proceed to checkout?`,
-      isUser: false,
-      timestamp: new Date(),
-      type: 'system',
-      status: 'delivered',
-      metadata: {
-        intent: 'add_to_cart',
-        products: [product]
-      }
-    };
-
-    dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
-    
-    // Update context
-    contextManager.updateContext(userId, sessionId, assistantMessage, [product]);
+    // Navigate to product details page
+    window.location.href = `/product/${product.id}`;
   }, [userId, sessionId]);
 
   // Enhanced shopping cart actions for Deep Research products
   const addToCartFromDeepResearch = useCallback((product: ProductResearchResult) => {
     console.log('Adding Deep Research product to cart:', product);
     
-    // Convert Deep Research product to regular product format
-    const regularProduct: Product = {
-      id: product.name,
-      title: product.name,
-      price: product.price,
-      description: product.description,
-      imageUrl: product.imageUrl || '/placeholder-product.jpg',
-      images: [product.imageUrl || '/placeholder-product.jpg'],
-      category: 'general',
-      brand: product.source,
-      rating: product.rating,
-      reviewCount: product.reviews.length,
-      inStock: true,
-      stockCount: 10,
-      features: [],
-      specifications: {},
-      tags: [],
-      seller: {
-        id: 'seller_1',
-        name: product.source,
-        rating: 4.5,
-        reviewCount: 100,
-        verified: true
-      },
-      shipping: {
-        free: true,
-        estimatedDays: 3,
-        fastDelivery: true
-      },
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+    // Store product data in localStorage for the product details page
+    localStorage.setItem('selectedProduct', JSON.stringify(product));
     
     // Mark product as selected in search history
     contextManager.markProductSelected(userId, sessionId, product.name);
     
-    // Add to cart message
-    const assistantMessage: Message = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      text: `Great choice! I've added "${product.name}" to your cart for ${product.price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}. This product has a ${product.rating}/5 rating and ${(product.sentimentScore * 100).toFixed(0)}% positive sentiment. Would you like to continue shopping or proceed to checkout?`,
-      isUser: false,
-      timestamp: new Date(),
-      type: 'system',
-      status: 'delivered',
-      metadata: {
-        intent: 'add_to_cart',
-        products: [regularProduct],
-        deepResearchSource: product.source,
-        sentimentScore: product.sentimentScore
-      }
-    };
-
-    dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
-    
-    // Update context
-    contextManager.updateContext(userId, sessionId, assistantMessage, [regularProduct]);
+    // Navigate to product details page
+    window.location.href = `/product/${encodeURIComponent(product.name)}`;
   }, [userId, sessionId]);
+
+  // Handle viewing product details
+  const viewProductDetails = useCallback((product: Product) => {
+    console.log('Viewing product details:', product);
+    
+    // Store product data in localStorage for the product details page
+    localStorage.setItem('selectedProduct', JSON.stringify(product));
+    
+    // Navigate to product details page
+    window.location.href = `/product/${product.id}`;
+  }, []);
 
   // Handle viewing Deep Research product details
   const viewDeepResearchProduct = useCallback((product: ProductResearchResult) => {
-    const assistantMessage: Message = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      text: `Here are the detailed insights for **${product.name}**:
-
-**Price:** ${product.price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}
-**Rating:** ${product.rating}/5 stars
-**Sentiment Analysis:** ${(product.sentimentScore * 100).toFixed(0)}% positive
-**Overall Score:** ${(product.overallScore * 100).toFixed(0)}%
-**Source:** ${product.source}
-
-**Description:** ${product.description}
-
-**Key Reviews:**
-${product.reviews.slice(0, 3).map((review, idx) => 
-  `${idx + 1}. ${review.rating}/5 - "${review.text}" (${review.sentiment})`
-).join('\n')}
-
-Would you like me to find similar products or help you compare this with other options?`,
-      isUser: false,
-      timestamp: new Date(),
-      type: 'product_details',
-      status: 'delivered',
-      metadata: {
-        intent: 'product_info',
-        productData: product,
-        deepResearchSource: product.source
-      }
-    };
-
-    dispatch({ type: 'ADD_MESSAGE', payload: assistantMessage });
+    console.log('Viewing Deep Research product details:', product);
     
-    // Update context
-    contextManager.updateContext(userId, sessionId, assistantMessage);
-  }, [userId, sessionId]);
+    // Store product data in localStorage for the product details page
+    localStorage.setItem('selectedProduct', JSON.stringify(product));
+    
+    // Navigate to product details page
+    window.location.href = `/product/${encodeURIComponent(product.name)}`;
+  }, []);
 
   // Handle comparing Deep Research products
   const compareDeepResearchProducts = useCallback((products: ProductResearchResult[]) => {
@@ -769,6 +760,7 @@ Would you like me to help you decide between these options or find more alternat
     ...state,
     activeConversation,
     messages,
+    researchStatus,
     
     // Actions
     addMessage,
@@ -783,11 +775,13 @@ Would you like me to help you decide between these options or find more alternat
     setSearchingProducts,
     setError,
     clearError,
+    clearResearchStatus,
     
     // Enhanced AI-powered actions
     processUserMessage,
     searchProducts,
     addToCart,
+    viewProductDetails,
     
     // Deep Research specific actions
     addToCartFromDeepResearch,

@@ -140,10 +140,7 @@ export default function ChatPage() {
   };
 
   const handleViewProductDetails = (product: Product) => {
-    // This will be implemented in later phases
-    console.log('View product details:', product);
-    // For now, just show a message
-    chat.addMessage(`Here are the details for "${product.title}". This feature will be available soon!`, false, 'system');
+    chat.viewProductDetails(product);
   };
 
   // Deep Research specific handlers
@@ -213,9 +210,13 @@ export default function ChatPage() {
               </div>
               <div className="flex items-center space-x-3">
                 <div className="hidden sm:flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <div className={`w-2 h-2 rounded-full ${chat.isSearchingProducts ? 'bg-blue-500 animate-pulse' : 'bg-green-500'}`}></div>
                   <span className="text-sm text-gray-600">
-                    {chat.isSearchingProducts ? 'Conducting Deep Research...' : 'Voice & Text Ready'}
+                    {chat.researchStatus 
+                      ? chat.researchStatus
+                      : chat.isSearchingProducts 
+                      ? 'Conducting Deep Research...' 
+                      : 'Voice & Text Ready'}
                   </span>
                 </div>
               </div>
@@ -259,7 +260,9 @@ export default function ChatPage() {
               <TypingIndicator 
                 isVisible={chat.isTyping}
                 message={
-                  chat.isSearchingProducts 
+                  chat.researchStatus 
+                    ? chat.researchStatus
+                    : chat.isSearchingProducts 
                     ? "Conducting Deep Research to find the best products for you..."
                     : "Walmart Assistant is typing..."
                 }
