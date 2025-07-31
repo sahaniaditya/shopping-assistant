@@ -1,4 +1,4 @@
-# 🛒 Walmart Shopping Assistant - AI-Powered E-commerce Platform
+# 🛒 Shopping Assistant : AI-Powered E-commerce Platform
 
 ## 📋 Project Overview
 
