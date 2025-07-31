@@ -2,7 +2,7 @@
 
 ## 📋 Project Overview
 
-This project is a cutting-edge **AI-powered shopping assistant** that revolutionizes the online shopping experience for Walmart customers. Built with **Next.js**, **TypeScript**, and **Tailwind CSS**, it combines advanced AI capabilities, deep product research, voice interaction, and seamless checkout processes to create an unparalleled e-commerce platform.
+This project is a cutting-edge **AI-powered shopping assistant** that revolutionizes the online shopping experience for  customers. Built with **Next.js**, **TypeScript**, and **Tailwind CSS**, it combines advanced AI capabilities, deep product research, voice interaction, and seamless checkout processes to create an unparalleled e-commerce platform.
 
 ---
 
