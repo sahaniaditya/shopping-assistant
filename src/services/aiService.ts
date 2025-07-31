@@ -11,7 +11,7 @@ import {
 } from '@/types/ai';
 import { deepResearchService, DeepResearchResponse } from '@/services/deepResearchService';
 
-const NEXT_PUBLIC_GEMINI_API_KEY="AIzaSyB-iE3cUXJw2h-tcQrJnEkmPes7-URe3qI"
+const NEXT_PUBLIC_GEMINI_API_KEY="<api-key>"
 // Default configuration
 const DEFAULT_CONFIG: AIServiceConfig = {
   llm: {

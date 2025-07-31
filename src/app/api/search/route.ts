@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const serpApiKey = process.env.NEXT_PUBLIC_SERP_API_KEY || '6bcbe76b8b514518985e3007d17211f273c1691b24ad3ea72596b847e258b230';
+    const serpApiKey = process.env.NEXT_PUBLIC_SERP_API_KEY;
     
     const params = new URLSearchParams({
       api_key: serpApiKey,

@@ -204,8 +204,8 @@ class DeepResearchService {
 
   constructor() {
     // Use the provided API key
-    this.serpApiKey = process.env.NEXT_PUBLIC_SERP_API_KEY || '6bcbe76b8b514518985e3007d17211f273c1691b24ad3ea72596b847e258b230';
-    this.geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || 'AIzaSyB-iE3cUXJw2h-tcQrJnEkmPes7-URe3qI';
+    this.serpApiKey = process.env.NEXT_PUBLIC_SERP_API_KEY;
+    this.geminiApiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
   }
 
   // Step 1: Extract Intent & Category from User Query
@@ -283,7 +283,7 @@ Examples:
         
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(`❌ API Error: ${response.status} ${response.statusText}`, errorText);
+          console.error(` API Error: ${response.status} ${response.statusText}`, errorText);
           throw new Error(`Walmart search API request failed: ${response.status} ${response.statusText}`);
         }
 
@@ -294,7 +294,7 @@ Examples:
         
         allResults.push(...walmartProducts);
         
-        console.log(`✅ Found ${walmartProducts.length} Walmart products for query: ${query}`);
+        console.log(` Found ${walmartProducts.length} Walmart products for query: ${query}`);
         
         // Small delay to be respectful to the API
         await new Promise(resolve => setTimeout(resolve, 300));
@@ -305,7 +305,7 @@ Examples:
       }
     }
 
-    console.log(`📊 Total Walmart products found: ${allResults.length}`);
+    console.log(` Total Walmart products found: ${allResults.length}`);
     return allResults;
   }
 
@@ -323,12 +323,12 @@ Examples:
       
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`❌ API Error: ${response.status} ${response.statusText}`, errorText);
+        console.error(` API Error: ${response.status} ${response.statusText}`, errorText);
         throw new Error(`Failed to fetch product details: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log(`✅ Received detailed product data for ${productId}`);
+      console.log(` Received detailed product data for ${productId}`);
       
       // Transform the response to our detailed product interface
       return this.transformToDetailedProduct(data);
@@ -424,7 +424,7 @@ Examples:
 
   // Enhanced method to extract product info with detailed data
   async extractProductInfo(walmartProducts: WalmartProduct[]): Promise<ProductResearchResult[]> {
-    console.log(`📊 Extracting detailed info for ${walmartProducts.length} products`);
+    console.log(` Extracting detailed info for ${walmartProducts.length} products`);
     
     const results: ProductResearchResult[] = [];
     
@@ -458,7 +458,7 @@ Examples:
 
   // Step 5: Sentiment Analysis & Ranking
   async analyzeSentimentAndRank(products: ProductResearchResult[]): Promise<ProductResearchResult[]> {
-    console.log('🧠 Analyzing sentiment and ranking products...');
+    console.log(' Analyzing sentiment and ranking products...');
     
     for (const product of products) {
       // Analyze sentiment of description and reviews
@@ -472,7 +472,7 @@ Examples:
     // Sort by overall score descending
     const rankedProducts = products.sort((a, b) => b.overallScore - a.overallScore);
     
-    console.log('📊 Products ranked by overall score');
+    console.log(' Products ranked by overall score');
     return rankedProducts;
   }
 
@@ -538,42 +538,42 @@ Use real customer feedback and data. Be objective and thorough.
     const startTime = Date.now();
     
     try {
-      console.log('🔍 Starting Deep Research for:', userQuery);
+      console.log(' Starting Deep Research for:', userQuery);
       
       // Step 1: Extract Intent
-      console.log('📊 Extracting intent...');
+      console.log(' Extracting intent...');
       const intent = await this.extractIntent(userQuery);
-      console.log('✅ Intent extracted:', intent);
+      console.log(' Intent extracted:', intent);
       
       // Step 2: Create Research Plan
-      console.log('📋 Creating research plan...');
+      console.log(' Creating research plan...');
       const plan = await this.createResearchPlan(intent);
-      console.log('✅ Research plan created:', plan);
+      console.log(' Research plan created:', plan);
       
       // Step 3: Execute Search
-      console.log('🔍 Executing web search...');
+      console.log(' Executing web search...');
       const searchResults = await this.executeSearch(plan);
-      console.log(`✅ Search completed, found ${searchResults.length} results`);
+      console.log(` Search completed, found ${searchResults.length} results`);
       
       // Step 4: Extract Product Information
-      console.log('📦 Extracting product information...');
+      console.log(' Extracting product information...');
       const products = await this.extractProductInfo(searchResults);
-      console.log(`✅ Extracted ${products.length} products`);
+      console.log(` Extracted ${products.length} products`);
       
       // Step 5: Sentiment Analysis & Ranking
-      console.log('🧠 Analyzing sentiment and ranking...');
+      console.log(' Analyzing sentiment and ranking...');
       const rankedProducts = await this.analyzeSentimentAndRank(products);
-      console.log('✅ Products analyzed and ranked');
+      console.log(' Products analyzed and ranked');
       
       // Step 6: Generate Report
-      console.log('📝 Generating research report...');
+      console.log(' Generating research report...');
       const researchSummary = await this.generateResearchReport(rankedProducts, userQuery);
-      console.log('✅ Research report generated');
+      console.log(' Research report generated');
       
       const endTime = Date.now();
       const processingTime = endTime - startTime;
       
-      console.log(`🎉 Deep Research completed in ${processingTime}ms`);
+      console.log(` Deep Research completed in ${processingTime}ms`);
       
       return {
         products: rankedProducts,
